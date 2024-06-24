@@ -1,0 +1,159 @@
+<?php
+	$movepath = '';
+	require_once('autoload.php');	
+	require_once($movepath.'library/reference.php');
+	require_once ("adminauth.php");
+	$is_ajaxcall = true;
+	
+	$security_type_bol = new security_type_bol();
+	$security_type_info = new security_type_info();
+	$error_arr = array();
+	
+	$json_return_arr['sessionexpire'] = 0;
+	
+	// Select Security Type for pop up
+	if((isset($_GET['authaction']) && $_GET['authaction']=='add') || (isset($_GET['authaction']) && $_GET['authaction']=='edit'))
+	{
+		if( isset($_POST['security_type_popup']))
+		{
+			$json_return_arr['sessionexpire'] = 0;
+			
+			$security_type_id = $_POST['security_type_popup'];
+			if($security_type_id>0)
+			{
+				$row = $security_type_bol->select_security_type_byid($security_type_id);
+				$security_type_code = clean_jscode($row['security_type_code']);
+				$security_type_name = clean_jscode($row['security_type_name']);
+			}
+			
+			$return_str = '<div class="modal-body">		
+									<form id="frm_security_type_setup" name="frm_security_type_setup" class="form-material form-horizontal" role="form" method="post" enctype="multipart/form-data" action="">
+										<div id="alert_msg" class="error"></div>
+										<div class="form-group row">';
+			if($security_type_id>0) 
+			{
+				$return_str .='<input type="hidden" id="hidsecurity_typeid" name="hidsecurity_typeid" value="' . $security_type_id . '" >';
+			}
+			$return_str .='			<label class="col-form-label col-md-4 required">လုံခြုံမှုအဆင့်အတန်းကုတ်နံပါတ်</label>
+											<div class="col-md-7">
+												<input type="text" name="txtsecurity_typecode" id="txtsecurity_typecode" class="form-control" ';
+			if($security_type_id>0)
+				$return_str .='value="'.$security_type_code.'" />';
+			else
+				$return_str .=' />';
+			$return_str .='			</div>
+										</div>
+										<div class="form-group row">
+											<label class="col-form-label col-md-4 required">လုံခြုံမှုအဆင့်အတန်းအမည်
+											</label>
+											<div class="col-md-7">
+												<input type="text" name="txtsecurity_typename" id="txtsecurity_typename" class="form-control" ';
+			if($security_type_id>0)
+				$return_str .='value="'.$security_type_name.'" />';
+			else
+				$return_str .=' />';
+			$return_str .='			</div>
+										</div>
+										<div id="divprogress"></div>
+									</form>
+								</div>';
+			if($security_type_id>0)
+			{
+				$return_str .='<div class="modal-footer" id="divbuttons">
+									<button type="button" class="btn btn-success" id="btnnew" name="btnnew" onclick="update_security_type()">ပြင်ဆင်မည် </button>
+									<button type="button" class="btn btn-outline-secondary" id="btncancel" name="btncancel" data-dismiss="modal">မပြင်ဆင်ပါ</button>
+								</div>';
+			}
+			else
+			{
+				$return_str .='<div class="modal-footer" id="divbuttons">
+									<button type="button" class="btn btn-success" id="btnnew" name="btnnew" onclick="save_security_type()">သိမ်းမည် </button>
+									<button type="button" class="btn btn-outline-secondary" id="btncancel" name="btncancel" data-dismiss="modal">မသိမ်းပါ</button>
+								</div>';
+			}
+			$json_return_arr['popupdata'] = $return_str;
+		}
+	}
+
+	// Save New Record and Edit
+	if((isset($_GET['authaction']) && $_GET['authaction']=='add') || (isset($_GET['authaction']) && $_GET['authaction']=='edit'))
+	{
+		if( isset($_POST['security_type_id']) && isset($_POST['security_type_code']) && isset($_POST['security_type_name']))
+		{
+			$security_type_id = clean_jscode($_POST['security_type_id']);
+			$security_type_code = clean_jscode($_POST['security_type_code']);
+			$security_type_name = clean_jscode($_POST['security_type_name']);
+
+			if( $security_type_code == '' )
+				$error_arr[] = 'လုံခြုံမှုအဆင့်အတန်းကုတ်နံပါတ် ထည့်ပေးပါရန်';
+			elseif( $security_type_name == '' )
+				$error_arr[] = 'လုံခြုံမှုအဆင့်အတန်းအမည် ထည့်ပေးပါရန်';
+			if($security_type_id>0)
+			{
+				if( $security_type_bol->check_duplicate_security_type_name($security_type_code, $security_type_name, $security_type_id) )
+					$error_arr[] = 'ဤလုံခြုံမှုအဆင့်အတန်းစာရင်းရှိနှင့်ပြီးဖြစ်သည်';
+			}
+			else
+			{
+				if( $security_type_bol->check_duplicate_security_type_name($security_type_code, $security_type_name) )
+					$error_arr[] = 'ဤလုံခြုံမှုအဆင့်အတန်းစာရင်းရှိနှင့်ပြီးဖြစ်သည်';
+			}
+
+			if( count($error_arr) == 0 )
+			{
+				$json_return_arr['sessionexpire'] = 0;
+				
+				if($security_type_id>0)
+				{
+					$security_type_info->set_security_type_id($security_type_id);
+					$mess= 'ပြင်ဆင်ခြင်း';
+				}
+				else
+					$mess = 'အသစ်ထည့်ခြင်း';
+				$security_type_info->set_security_type_code($security_type_code);
+				$security_type_info->set_security_type_name($security_type_name);
+				if ( $security_type_bol->save_security_type($security_type_info) )
+				{
+					$json_return_arr['success'] = 1;
+					$json_return_arr['alertclass'] = 'alert alert-success';
+					$json_return_arr['message'] = 'လုံခြုံမှုအဆင့်အတန်း '.$mess.' အောင်မြင်သည်';
+				}
+				else
+				{
+					$json_return_arr['success'] = 0;
+					$json_return_arr['alertclass'] = 'alert alert-danger';
+					$json_return_arr['message'] = 'လုံခြုံမှုအဆင့်အတန်း '.$mess.' မအောင်မြင်ပါ';
+				}
+			}
+			else
+			{
+				$json_return_arr['success'] = 0;
+				$json_return_arr['alertclass'] = 'alert alert-warning';
+				$json_return_arr['message'] = implode('<br>', $error_arr);
+			}
+		}
+	}
+	
+	// Delete 
+	if(isset($_GET['authaction']) && $_GET['authaction']=='delete')
+	{
+		if( isset($_POST['delete_security_type_id']) )
+		{  
+			$json_return_arr['sessionexpire'] = 0;
+			$security_type_id = (int)($_POST['delete_security_type_id']);
+			if( $security_type_bol->delete_security_type($security_type_id) )
+			{
+				$json_return_arr['success'] = 1;
+				$json_return_arr['alertclass'] = 'alert alert-success';
+				$json_return_arr['message'] = 'လုံခြုံမှုအဆင့်အတန်း ပယ်ဖျက်ခြင်း အောင်မြင်သည်';
+			}
+			else
+			{
+				$json_return_arr['success'] = 0;
+				$json_return_arr['alertclass'] = 'alert alert-danger';
+				$json_return_arr['message'] = 'လုံခြုံမှုအဆင့်အတန်း ပယ်ဖျက်ခြင်း မအောင်မြင်ပါ';
+			}
+		}
+	}	
+	echo json_encode($json_return_arr);exit();
+?>
